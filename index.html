@@ -50,6 +50,10 @@ canvas{display:block;width:100%;height:96px}
 .row{display:flex;gap:10px;flex-wrap:wrap}
 .msg{font-size:13.5px;color:var(--mute);margin-top:12px}
 .err{margin:16px 22px 0;border:1px solid #F0C4C1;background:#FDF1F0;border-radius:8px;padding:14px 16px;color:#8E1F19;font-size:14px}
+.env{margin:0;padding:10px 22px;font-size:13px;background:#E4EEF4;color:#0B3B56;border-bottom:1px solid var(--line)}
+.env.bad{background:#FDF1F0;color:#8E1F19}
+.evlog{margin:8px 0 0;padding-left:18px;font-size:13px;color:var(--mute)}
+details summary{cursor:pointer;font-size:13.5px;margin-top:12px}
 .foot{margin-top:auto;padding:14px 22px;color:var(--mute);font-size:12.5px;border-top:1px solid var(--line)}
 </style>
 </head>
@@ -59,6 +63,7 @@ canvas{display:block;width:100%;height:96px}
     <h1>Máy ghi âm cuộc họp</h1>
     <span class="badge" id="link">Đang kết nối…</span>
   </header>
+  <div class="env" id="env" hidden></div>
 
   <section class="setup" id="setup">
     <label>Micro
@@ -109,9 +114,11 @@ canvas{display:block;width:100%;height:96px}
     <audio id="prev" controls></audio>
     <div class="row">
       <button class="btn primary" id="bSend">Gửi về ứng dụng</button>
+      <button class="btn" id="bShare" hidden>Chia sẻ / Lưu file</button>
       <button class="btn" id="bDl">Tải file gộp (.mp3)</button>
       <button class="btn" id="bAgain">Ghi lại</button>
     </div>
+    <details id="evbox" hidden><summary id="evsum"></summary><ul class="evlog" id="evlog"></ul></details>
     <p class="msg" id="sent"></p>
   </div>
 
@@ -124,11 +131,17 @@ const $ = s => document.querySelector(s);
 const ORIGIN_OK = o => /^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/.test(o) || o === 'https://script.google.com';
 const hms = s => { s = Math.max(0, Math.round(s||0)); const p = n => String(n).padStart(2,'0'); return `${p(Math.floor(s/3600))}:${p(Math.floor(s%3600/60))}:${p(s%60)}`; };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const UA = navigator.userAgent;
+const IOS = /iPhone|iPad|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const STANDALONE = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+const NOT_SAFARI = IOS && /CriOS|FxiOS|EdgiOS|OPiOS|GSA/.test(UA);
+const CAN_TAB = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) && !IOS;
+const canShareFiles = () => { try { return !!(navigator.canShare && navigator.canShare({ files:[new File(['x'], 'a.mp3', { type:'audio/mpeg' })] })); } catch(e){ return false; } };
 
 /* S: trạng thái ghi âm. Đồng hồ tính theo số mẫu âm thanh thực nhận (không theo đồng hồ hệ thống), nên mốc giờ luôn khớp với file. */
 const S = { ctx:null, mic:null, micSrc:null, tab:null, mix:null, node:null, enc:null, rate:16000, kbps:24,
   running:false, paused:false, level:0, bars:[], q:[], qLen:0, total:0, partStart:0, chunks:[], savedIdx:0, parts:[], idx:1, quiet:0,
-  segSec:900, wake:null, sid:0, stamp:'', t0:0, pausedMs:0, pauseAt:0, tid:0, idbT:0, note:'' };
+  events:[], flash:'', flashUntil:0, zero:0, silent:false, reconnecting:false, segSec:900, wake:null, sid:0, stamp:'', t0:0, pausedMs:0, pauseAt:0, tid:0, idbT:0, note:'' };
 let target = null, P = [], dur = 0, base = '';
 
 /* ---------- Lưu tạm bằng IndexedDB để khôi phục khi cửa sổ bị đóng nhầm hoặc máy sập ---------- */
@@ -208,10 +221,13 @@ function cutPart(){
     name:`ghi-am-${S.stamp}-p${String(S.idx).padStart(2,'0')}.mp3`, mime:'audio/mpeg' });
   S.idx++; S.partStart = S.total; S.chunks = []; S.savedIdx = 0; S.quiet = 0; newEncoder();
 }
-function onPcm(f){
+function logEv(text){ S.events.push({ t:S.total / S.rate, text }); S.flash = text; S.flashUntil = performance.now() + 20000; }
+function onPcm(f, synthetic){
   if (!S.running || S.paused) return;
   let s = 0; for (let i=0;i<f.length;i++) s += f[i]*f[i];
-  S.level = Math.min(1, Math.sqrt(s/f.length)*3.2);
+  const rms = Math.sqrt(s/f.length);
+  S.level = Math.min(1, rms*3.2);
+  if (!synthetic) S.zero = rms < 2e-4 ? S.zero + f.length : 0;        // im lặng tuyệt đối kéo dài = micro bị tắt tiếng hoặc ngắt
   S.quiet = S.level < 0.05 ? S.quiet + f.length : 0;
   const ps = S.total - S.partStart, goal = S.segSec * S.rate;
   /* Đủ thời lượng thì cắt ở chỗ im lặng (≥0,4 giây); nếu 45 giây vẫn không có chỗ nghỉ thì cắt luôn */
@@ -221,44 +237,65 @@ function onPcm(f){
   S.q.push(x); S.qLen += x.length; S.total += f.length;
   if (S.qLen >= 4608) flushQ();
 }
+/* Chèn im lặng cho khoảng thời gian bị mất để mốc giờ trong file luôn khớp với giờ thật của cuộc họp */
+function padSilence(sec){
+  let n = Math.round(sec * S.rate); const B = 4096, z = new Float32Array(B);
+  while (n > 0){ const k = Math.min(B, n); onPcm(k === B ? z : new Float32Array(k), true); n -= k; }
+}
+function syncGap(reason){
+  if (!S.running || S.paused) return;
+  const wall = (performance.now() - S.t0 - S.pausedMs) / 1000, lost = wall - S.total / S.rate;
+  if (lost > 2){ logEv(`Thiếu khoảng ${Math.round(lost)} giây âm thanh (${reason}); đã chèn im lặng để giữ đúng mốc giờ.`); padSilence(lost); }
+}
 
 const getMic = any => { const id = !any && $('#selMic').value;
   return navigator.mediaDevices.getUserMedia({ audio:{ deviceId:id ? { exact:id } : undefined, channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); };
-function watchMic(m){ m.getAudioTracks()[0].onended = () => { if (S.running && S.mic === m) reconnectMic(); }; }
+function watchMic(m){
+  const tr = m.getAudioTracks()[0];
+  tr.onended = () => { if (S.running && S.mic === m){ logEv('Micro bị ngắt kết nối, đang thử nối lại.'); reconnectMic(); } };
+  tr.onmute = () => { if (S.running && S.mic === m) logEv('Micro bị hệ thống tắt tiếng (cuộc gọi đến, khóa màn hình hoặc ứng dụng khác dùng micro).'); };
+  tr.onunmute = () => { if (S.running && S.mic === m){ logEv('Micro hoạt động trở lại.'); syncGap('micro bật lại'); } };
+}
 /* Micro rút ra hoặc Bluetooth rớt: thử nối lại tối đa ~40 giây, nếu không được thì lưu phần đã ghi */
 async function reconnectMic(){
+  if (S.reconnecting) return; S.reconnecting = true;
   S.note = 'Mất kết nối micro, đang thử nối lại…';
-  for (let k=0; k<20 && S.running; k++){
-    try {
-      const m = await getMic(true);
-      try { S.micSrc.disconnect(); } catch(e){}
-      S.mic = m; S.micSrc = S.ctx.createMediaStreamSource(m); S.micSrc.connect(S.mix); watchMic(m); S.note = ''; return;
-    } catch(e){ await sleep(2000); }
-  }
-  if (S.running){ $('#sub').textContent = 'Không nối lại được micro. Đã lưu phần ghi được.'; stop(); }
+  try {
+    for (let k=0; k<20 && S.running; k++){
+      try {
+        const m = await getMic(true);
+        try { S.micSrc.disconnect(); } catch(e){}
+        S.mic = m; S.micSrc = S.ctx.createMediaStreamSource(m); S.micSrc.connect(S.mix); watchMic(m); S.note = '';
+        logEv('Đã nối lại micro.'); syncGap('nối lại micro'); return;
+      } catch(e){ await sleep(2000); }
+    }
+    if (S.running){ $('#sub').textContent = 'Không nối lại được micro. Đã lưu phần ghi được.'; stop(); }
+  } finally { S.reconnecting = false; }
 }
 
 async function start(){
   $('#err').hidden = true; $('#recover').hidden = true; $('#done').hidden = true; $('#sub').textContent = ''; $('#warn').hidden = true;
   if (typeof lamejs === 'undefined'){ showErr('Không tải được bộ mã hóa MP3. Kiểm tra kết nối mạng rồi tải lại trang.'); return; }
+  /* Tạo và bật AudioContext ngay trong lần bấm: iOS/Safari chỉ cho phép khi còn "cử chỉ người dùng", sau các bước chờ cấp quyền micro thì quá muộn */
+  try { S.ctx = new AudioContext({ sampleRate:16000 }); } catch(e){ S.ctx = new AudioContext(); }
+  S.ctx.resume().catch(() => {});
+  const bail = (msg, ...streams) => { streams.forEach(s => s && s.getTracks().forEach(t => t.stop())); try { S.ctx.close(); } catch(e){} showErr(msg); };
   let tab = null, mic = null;
   if ($('#cbTab').checked){
     try { tab = await navigator.mediaDevices.getDisplayMedia({ video:true, audio:true }); }
-    catch(e){ showErr('Chưa chia sẻ tab cuộc họp. Bấm Bắt đầu, chọn tab và bật “Chia sẻ âm thanh của tab”.'); return; }
+    catch(e){ bail('Chưa chia sẻ tab cuộc họp. Bấm Bắt đầu, chọn tab và bật “Chia sẻ âm thanh của tab”.'); return; }
     tab.getVideoTracks().forEach(t => t.stop());
-    if (!tab.getAudioTracks().length){ tab.getTracks().forEach(t => t.stop()); showErr('Tab đã chọn không có âm thanh. Hãy chọn lại và bật “Chia sẻ âm thanh của tab”.'); return; }
+    if (!tab.getAudioTracks().length){ bail('Tab đã chọn không có âm thanh. Hãy chọn lại và bật “Chia sẻ âm thanh của tab”.', tab); return; }
   }
   try { mic = await getMic(false); }
   catch(e){
-    if (tab) tab.getTracks().forEach(t => t.stop());
-    showErr('Chưa được phép dùng micro. Bấm biểu tượng ổ khóa cạnh thanh địa chỉ, cho phép Micrô rồi bấm Bắt đầu lại.'); return;
+    bail('Chưa được phép dùng micro. Bấm biểu tượng ổ khóa cạnh thanh địa chỉ (hoặc aA trên Safari iPhone), cho phép Micrô rồi bấm Bắt đầu lại.', tab); return;
   }
   loadDevices();
   try {
     await idbClear();                                                   // bản ghi cũ chưa khôi phục đã được người dùng bỏ qua ở màn hình khôi phục
-    try { S.ctx = new AudioContext({ sampleRate:16000 }); } catch(e){ S.ctx = new AudioContext(); }
     await S.ctx.resume();
-    S.ctx.onstatechange = () => { if (S.running && S.ctx.state !== 'running') S.ctx.resume().catch(() => {}); };
+    S.ctx.onstatechange = () => { if (!S.running) return; if (S.ctx.state !== 'running') S.ctx.resume().catch(() => {}); else syncGap('âm thanh hệ thống tiếp tục'); };
     S.rate = S.ctx.sampleRate; S.kbps = S.rate > 24000 ? 48 : 24;
     S.mix = S.ctx.createGain(); S.mix.gain.value = tab ? 0.7 : 1;
     S.micSrc = S.ctx.createMediaStreamSource(mic); S.micSrc.connect(S.mix);
@@ -272,7 +309,7 @@ async function start(){
     [mic, tab].forEach(s => s && s.getTracks().forEach(t => t.stop())); try { S.ctx.close(); } catch(x){}
     showErr('Không khởi tạo được bộ ghi âm: ' + (e.message || e)); return;
   }
-  Object.assign(S, { mic, tab, parts:[], idx:1, q:[], qLen:0, total:0, partStart:0, chunks:[], savedIdx:0, quiet:0, bars:[], pausedMs:0, note:'',
+  Object.assign(S, { mic, tab, parts:[], idx:1, q:[], qLen:0, total:0, partStart:0, chunks:[], savedIdx:0, quiet:0, bars:[], pausedMs:0, note:'', events:[], flash:'', flashUntil:0, zero:0, silent:false, reconnecting:false,
     segSec:+$('#selSeg').value || 900, sid:Date.now(), stamp:new Date().toISOString().slice(0,16).replace(/[-:T]/g,'') });
   P = []; newEncoder(); watchMic(mic);
   if (tab) tab.getAudioTracks()[0].onended = () => { S.note = 'Đã dừng chia sẻ tab. Vẫn tiếp tục ghi micro.'; };
@@ -281,9 +318,12 @@ async function start(){
   ui('recording'); S.tid = setInterval(tick, 100); S.idbT = setInterval(persist, 2000);
 }
 document.addEventListener('visibilitychange', async () => {
-  if (!S.running || document.visibilityState !== 'visible') return;
+  if (!S.running) return;
+  if (document.visibilityState === 'hidden'){ if (IOS) logEv('Trang bị đưa xuống nền (chuyển tab, ứng dụng khác hoặc khóa màn hình).'); return; }
   try { S.wake = await navigator.wakeLock.request('screen'); } catch(e){}
-  if (S.ctx && S.ctx.state !== 'running') S.ctx.resume().catch(() => {});
+  if (S.ctx && S.ctx.state !== 'running'){ try { await S.ctx.resume(); } catch(e){} }
+  const tr = S.mic && S.mic.getAudioTracks()[0];
+  if (tr && tr.readyState === 'ended') reconnectMic(); else syncGap('quay lại trang');
 });
 
 function tick(){
@@ -292,7 +332,15 @@ function tick(){
   draw();
   const el = S.total / S.rate; $('#timer').textContent = hms(el);
   const now = performance.now(), wall = (now - S.t0 - S.pausedMs - (S.paused ? now - S.pauseAt : 0)) / 1000, lost = wall - el;
-  let warn = S.note; if (lost > 5) warn = (warn ? warn + ' ' : '') + `Mất khoảng ${Math.round(lost)} giây âm thanh (máy ngủ hoặc micro gián đoạn).`;
+  const w = [];
+  if (S.note) w.push(S.note);
+  const silent = !S.paused && S.zero > 20 * S.rate;
+  if (silent && !S.silent){ S.silent = true; logEv(S.mic && S.mic.getAudioTracks()[0].muted ? 'Micro đang bị tắt tiếng, không có tín hiệu âm thanh.' : 'Không có tín hiệu âm thanh trong 20 giây (micro có thể bị tắt tiếng hoặc ngắt).'); }
+  if (!silent && S.silent && S.zero === 0){ S.silent = false; logEv('Tín hiệu âm thanh đã trở lại.'); }
+  if (silent) w.push('Không có tín hiệu âm thanh từ micro. Hãy kiểm tra micro, cuộc gọi hoặc nút tắt tiếng.');
+  if (lost > 5 && !S.paused) w.push(`Đang mất âm thanh (${Math.round(lost)} giây).`);
+  if (S.flash && now < S.flashUntil) w.push(S.flash);
+  const warn = [...new Set(w)].join(' ');
   $('#warn').hidden = !warn; $('#warn').textContent = warn;
   const saved = S.parts.length ? S.parts[S.parts.length-1].start + S.parts[S.parts.length-1].duration : 0;
   $('#sub').textContent = `Phần ${S.idx} · đã lưu an toàn ${S.parts.length} phần (${hms(saved)})`;
@@ -320,8 +368,12 @@ function showDone(){
   $('#doneInfo').textContent = `${P.length} phần · ${hms(dur)} · ${(P.reduce((s,p) => s + p.blob.size, 0)/1048576).toFixed(1)} MB`;
   const pv = $('#prev'); pv.dataset.i = '0'; pv.src = P[0].url;
   pv.onended = () => { const i = +pv.dataset.i + 1; if (i < P.length){ pv.dataset.i = i; pv.src = P[i].url; pv.play().catch(() => {}); } };
+  const ev = S.events || [];
+  $('#evbox').hidden = !ev.length; $('#evbox').open = ev.length > 0; $('#evsum').textContent = `Nhật ký ghi âm: ${ev.length} sự kiện`;
+  $('#evlog').innerHTML = ''; ev.forEach(e => { const li = document.createElement('li'); li.textContent = `[${hms(e.t)}] ${e.text}`; $('#evlog').append(li); });
+  $('#bShare').hidden = !canShareFiles();
   $('#sent').textContent = ''; delete $('#sent').dataset.ok; draw();
-  if (target) $('#bSend').click(); else if (window.opener) $('#sent').textContent = 'Đang chờ kết nối với ứng dụng…'; else $('#sent').textContent = 'Hãy bấm “Tải file gộp” rồi chọn file trong ứng dụng.';
+  if (target) $('#bSend').click(); else if (window.opener) $('#sent').textContent = 'Đang chờ kết nối với ứng dụng…'; else $('#sent').textContent = 'Hãy bấm “Chia sẻ / Lưu file” (hoặc “Tải file gộp”), rồi chọn file trong ứng dụng.';
 }
 
 $('#bStart').onclick = start; $('#bPause').onclick = togglePause;
@@ -330,18 +382,30 @@ $('#bSend').onclick = () => {
   if (!P.length) return;
   if (target && window.opener && !window.opener.closed){
     window.opener.postMessage({ type:'DONE', duration:dur, name:base, mime:'audio/mpeg',
-      parts:P.map(p => ({ blob:p.blob, start:p.start, duration:p.duration, name:p.name, mime:p.mime })), blob:P.length === 1 ? P[0].blob : undefined }, target);
+      events:S.events || [], parts:P.map(p => ({ blob:p.blob, start:p.start, duration:p.duration, name:p.name, mime:p.mime })), blob:P.length === 1 ? P[0].blob : undefined }, target);
     $('#sent').textContent = 'Đang gửi về ứng dụng…';
     setTimeout(() => { if (!$('#sent').dataset.ok) $('#sent').textContent = 'Chưa nhận được xác nhận. Hãy bấm “Tải file gộp” để giữ bản ghi.'; }, 10000);
   } else $('#sent').textContent = 'Không kết nối được ứng dụng. Hãy tải file về máy rồi chọn file trong ứng dụng.';
 };
+$('#bShare').onclick = async () => { try { await navigator.share({ files:[new File(P.map(p => p.blob), base + '.mp3', { type:'audio/mpeg' })], title:base }); } catch(e){} };
 $('#bDl').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(P.map(p => p.blob), { type:'audio/mpeg' })); a.download = base + '.mp3'; document.body.append(a); a.click(); a.remove(); };
 $('#bAgain').onclick = async () => {
   if (!confirm('Bỏ bản ghi này và ghi lại?')) return;
-  await idbClear(); P.forEach(p => p.url && URL.revokeObjectURL(p.url)); P = []; S.parts = []; S.bars = [];
+  await idbClear(); P.forEach(p => p.url && URL.revokeObjectURL(p.url)); P = []; S.parts = []; S.bars = []; S.events = [];
   $('#done').hidden = true; $('#timer').textContent = '00:00:00'; ui('idle'); draw();
 };
 window.addEventListener('beforeunload', e => { if (S.running){ e.preventDefault(); e.returnValue = ''; } });
+
+/* ---------- Cảnh báo theo môi trường (iPhone/iPad, chế độ ứng dụng, trình duyệt không phải Safari) ---------- */
+(function env(){
+  const box = $('#env'), msgs = []; let bad = false;
+  if (IOS && STANDALONE){ bad = true; msgs.push('Bạn đang mở ở chế độ ứng dụng trên Màn hình chính: micro sẽ mất khi khóa màn hình hoặc chuyển ứng dụng. Hãy mở trang này bằng Safari.'); }
+  else if (NOT_SAFARI){ bad = true; msgs.push('Trình duyệt này tắt micro khi xuống nền. Trên iPhone/iPad hãy mở bằng Safari.'); }
+  else if (IOS){ msgs.push('iPhone/iPad: dùng Safari, giữ màn hình sáng, cắm sạc và bật Không làm phiền. Nên mở trang này trực tiếp trong Safari; ghi xong bấm “Chia sẻ / Lưu file”.'); }
+  if (IOS && !('wakeLock' in navigator)) msgs.push('Máy chưa hỗ trợ giữ màn hình sáng: vào Cài đặt → Màn hình & Độ sáng → Tự động khóa → Không bao giờ.');
+  if (!CAN_TAB){ const c = $('#cbTab'); c.checked = false; c.closest('label').hidden = true; }
+  if (msgs.length){ box.hidden = false; box.className = 'env' + (bad ? ' bad' : ''); box.textContent = msgs.join(' '); }
+})();
 
 /* ---------- Khởi động: nếu còn bản ghi dở thì cho khôi phục ---------- */
 (async () => {
