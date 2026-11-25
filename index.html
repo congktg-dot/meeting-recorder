@@ -7,17 +7,26 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
 <style>
 :root{--ink:#16222B;--mute:#5B6B77;--canvas:#EEF1F3;--line:#D9E0E5;--brand:#0E4A6B;--rec:#D8372F;--ok:#2F7D4F;--warn:#B0841B;--band:#10202B}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{margin:0;background:var(--canvas);color:var(--ink);font:15px/1.55 'Be Vietnam Pro',system-ui,sans-serif}
-.wrap{max-width:460px;margin:0 auto;background:#fff;min-height:100vh;display:flex;flex-direction:column}
-header{background:var(--brand);color:#fff;padding:16px 22px}
+.wrap{max-width:480px;margin:0 auto;background:#fff;min-height:100vh;display:flex;flex-direction:column}
+header{background:var(--brand);color:#fff;padding:16px 22px;display:flex;justify-content:space-between;align-items:center;gap:12px}
 header h1{margin:0;font-size:17px;font-weight:700}
-header p{margin:2px 0 0;font-size:12.5px;opacity:.85}
-header p.ok{opacity:1;color:#B8F0CF}
-.band{background:var(--band);padding:16px 20px 6px}
+.badge{font-size:12.5px;padding:4px 10px;border-radius:20px;background:rgba(255,255,255,.14);white-space:nowrap}
+.badge.ok{background:#DDF3E6;color:#1E5C38}
+.setup{padding:18px 22px 6px;display:grid;gap:12px}
+.setup label{font-size:13.5px;font-weight:500;color:var(--mute);display:block}
+.setup select{display:block;width:100%;margin-top:5px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font:inherit;color:var(--ink);background:#fff}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.check{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:1px solid var(--line);border-radius:8px;cursor:pointer}
+.check input{margin-top:4px;accent-color:var(--brand)}
+.check b{display:block;font-weight:600;color:var(--ink);font-size:14px}
+.check span{font-size:13px;color:var(--mute)}
+.band{background:var(--band);padding:16px 20px 6px;margin-top:14px}
 canvas{display:block;width:100%;height:96px}
 .state{color:#9FB4C2;font-size:13px;padding:6px 0 10px;display:flex;align-items:center;gap:8px}
 .band.live .state{color:#fff}
@@ -26,19 +35,21 @@ canvas{display:block;width:100%;height:96px}
 .band.paused .dot{background:var(--warn)}
 @keyframes blink{50%{opacity:.25}}
 @media (prefers-reduced-motion:reduce){.band.live .dot{animation:none}}
-.timer{font-size:50px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:1px;text-align:center;padding:22px 0 4px}
-.ctrls{display:flex;justify-content:center;gap:10px;padding:8px 20px 20px;flex-wrap:wrap}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:10px 18px;cursor:pointer;font-weight:500}
+.timer{font-size:50px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:1px;text-align:center;padding:20px 0 4px}
+.sub{text-align:center;color:var(--mute);font-size:13px;min-height:20px;padding:0 20px}
+.warn{text-align:center;color:#8A5A00;background:#FFF4D6;font-size:13px;padding:8px 16px;margin:8px 20px 0;border-radius:8px}
+.ctrls{display:flex;justify-content:center;gap:10px;padding:12px 20px 20px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:10px 18px;cursor:pointer;font:inherit;font-weight:500;color:var(--ink)}
 .btn:hover{background:#F4F7F9}
-.btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.btn:focus-visible,select:focus-visible,.check:focus-within{outline:2px solid var(--brand);outline-offset:2px}
 .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
-.btn.rec{background:var(--rec);border-color:var(--rec);color:#fff;font-weight:600}
+.btn.rec{background:var(--rec);border-color:var(--rec);color:#fff;font-weight:600;padding:13px 26px;font-size:16px}
 .btn.dark{background:var(--band);border-color:var(--band);color:#fff}
 .panel{border-top:1px solid var(--line);padding:20px 22px}
 .panel audio{width:100%;margin:8px 0 14px}
-.panel .row{display:flex;gap:10px;flex-wrap:wrap}
+.row{display:flex;gap:10px;flex-wrap:wrap}
 .msg{font-size:13.5px;color:var(--mute);margin-top:12px}
-.err{margin:16px 22px;border:1px solid #F0C4C1;background:#FDF1F0;border-radius:8px;padding:14px 16px;color:#8E1F19;font-size:14px}
+.err{margin:16px 22px 0;border:1px solid #F0C4C1;background:#FDF1F0;border-radius:8px;padding:14px 16px;color:#8E1F19;font-size:14px}
 .foot{margin-top:auto;padding:14px 22px;color:var(--mute);font-size:12.5px;border-top:1px solid var(--line)}
 </style>
 </head>
@@ -46,62 +57,91 @@ canvas{display:block;width:100%;height:96px}
 <div class="wrap">
   <header>
     <h1>Máy ghi âm cuộc họp</h1>
-    <p id="link">Đang kết nối với ứng dụng…</p>
+    <span class="badge" id="link">Đang kết nối…</span>
   </header>
+
+  <section class="setup" id="setup">
+    <label>Micro
+      <select id="selMic"><option value="">Micro mặc định</option></select>
+    </label>
+    <label>Tự động cắt thành từng phần mỗi
+      <select id="selSeg">
+        <option value="600">10 phút</option>
+        <option value="900" selected>15 phút</option>
+        <option value="1200">20 phút</option>
+        <option value="1800">30 phút</option>
+      </select>
+    </label>
+    <label class="check"><input type="checkbox" id="cbTab">
+      <div><b>Ghi cả âm thanh cuộc họp trực tuyến</b>
+      <span>Dùng cho Google Meet, Zoom, Teams trên trình duyệt. Chọn tab cuộc họp và bật “Chia sẻ âm thanh của tab”. Nên đeo tai nghe để tránh vang.</span></div>
+    </label>
+  </section>
 
   <div class="band" id="band">
     <canvas id="wave" aria-label="Biểu đồ âm lượng"></canvas>
-    <div class="state"><span class="dot"></span><span id="st">Đang chờ…</span></div>
+    <div class="state"><span class="dot"></span><span id="st">Sẵn sàng ghi âm</span></div>
   </div>
   <div class="timer" id="timer">00:00:00</div>
-  <div class="ctrls" id="ctrls" hidden>
-    <button class="btn" id="bPause">Tạm dừng</button>
-    <button class="btn dark" id="bStop">Kết thúc</button>
+  <div class="sub" id="sub"></div>
+  <div class="warn" id="warn" hidden></div>
+
+  <div class="ctrls">
+    <button class="btn rec" id="bStart"><span class="dot"></span>Bắt đầu ghi âm</button>
+    <button class="btn" id="bPause" hidden>Tạm dừng</button>
+    <button class="btn dark" id="bStop" hidden>Kết thúc</button>
   </div>
 
-  <div class="err" id="err" hidden>
-    <span id="errTxt"></span>
-    <div style="margin-top:10px"><button class="btn primary" id="bRetry">Thử lại</button></div>
-  </div>
+  <div class="err" id="err" hidden><span id="errTxt"></span></div>
 
   <div class="panel" id="recover" hidden>
     <b>Có một bản ghi chưa được lưu</b>
     <p class="msg" id="recTxt"></p>
     <div class="row">
       <button class="btn primary" id="bRecover">Khôi phục bản ghi</button>
-      <button class="btn" id="bDiscard">Bỏ và ghi mới</button>
+      <button class="btn" id="bDiscard">Bỏ bản ghi này</button>
     </div>
   </div>
 
   <div class="panel" id="done" hidden>
     <b>Đã ghi xong</b>
+    <p class="msg" id="doneInfo" style="margin:4px 0 0"></p>
     <audio id="prev" controls></audio>
     <div class="row">
       <button class="btn primary" id="bSend">Gửi về ứng dụng</button>
-      <button class="btn" id="bDl">Tải file về máy</button>
+      <button class="btn" id="bDl">Tải file gộp (.mp3)</button>
       <button class="btn" id="bAgain">Ghi lại</button>
     </div>
     <p class="msg" id="sent"></p>
   </div>
 
-  <div class="foot">Giữ cửa sổ này mở trong suốt cuộc họp. Bản ghi được giữ tạm trên máy và chỉ gửi về ứng dụng của bạn.</div>
+  <div class="foot">Giữ cửa sổ này mở trong suốt cuộc họp. Âm thanh được ghi liên tục và tự cắt thành các phần tại chỗ im lặng, không mất tiếng giữa các phần. Bản ghi được lưu tạm trên máy và chỉ gửi về ứng dụng biên bản của bạn. Dùng Chrome hoặc Edge.</div>
 </div>
 
 <script>
 const $ = s => document.querySelector(s);
-/* Chỉ gửi dữ liệu cho cửa sổ đã mở trang này VÀ có nguồn thuộc Google Apps Script */
+/* Chỉ nhận lệnh từ cửa sổ đã mở trang này và có nguồn thuộc Google Apps Script */
 const ORIGIN_OK = o => /^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/.test(o) || o === 'https://script.google.com';
+const hms = s => { s = Math.max(0, Math.round(s||0)); const p = n => String(n).padStart(2,'0'); return `${p(Math.floor(s/3600))}:${p(Math.floor(s%3600/60))}:${p(s%60)}`; };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-const fmt = s => { s = Math.max(0, Math.round(s||0)); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60, p = n => String(n).padStart(2,'0'); return `${p(h)}:${p(m)}:${p(x)}`; };
-let stream, mr, ctx, an, chunks = [], acc = 0, t0 = 0, running = false, paused = false, tid = 0, bars = [];
-let target = null, wake = null, blob = null, dur = 0, name = '', sessionId = 0;
-const elapsed = () => acc + (running && !paused ? (performance.now()-t0)/1000 : 0);
+/* S: trạng thái ghi âm. Đồng hồ tính theo số mẫu âm thanh thực nhận (không theo đồng hồ hệ thống), nên mốc giờ luôn khớp với file. */
+const S = { ctx:null, mic:null, micSrc:null, tab:null, mix:null, node:null, enc:null, rate:16000, kbps:24,
+  running:false, paused:false, level:0, bars:[], q:[], qLen:0, total:0, partStart:0, chunks:[], savedIdx:0, parts:[], idx:1, quiet:0,
+  segSec:900, wake:null, sid:0, stamp:'', t0:0, pausedMs:0, pauseAt:0, tid:0, idbT:0, note:'' };
+let target = null, P = [], dur = 0, base = '';
 
-/* ---------- Lưu tạm bằng IndexedDB để khôi phục khi cửa sổ bị đóng nhầm ---------- */
-const idb = () => new Promise((ok, no) => { const r = indexedDB.open('meetrec', 1); r.onupgradeneeded = () => r.result.createObjectStore('chunks', { autoIncrement:true }); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
+/* ---------- Lưu tạm bằng IndexedDB để khôi phục khi cửa sổ bị đóng nhầm hoặc máy sập ---------- */
+const idb = () => new Promise((ok, no) => { const r = indexedDB.open('meetrec', 2); r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('chunks')) r.result.createObjectStore('chunks', { autoIncrement:true }); }; r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
 const idbAdd = async v => { try { const d = await idb(); d.transaction('chunks','readwrite').objectStore('chunks').add(v); } catch(e){} };
 const idbAll = async () => { const d = await idb(); return new Promise((ok, no) => { const q = d.transaction('chunks').objectStore('chunks').getAll(); q.onsuccess = () => ok(q.result); q.onerror = () => no(q.error); }); };
 const idbClear = async () => { try { const d = await idb(); d.transaction('chunks','readwrite').objectStore('chunks').clear(); } catch(e){} };
+function persist(){
+  if (S.savedIdx < S.chunks.length){
+    idbAdd({ s:S.sid, i:S.idx, start:S.partStart / S.rate, kbps:S.kbps, b:new Blob(S.chunks.slice(S.savedIdx)) });
+    S.savedIdx = S.chunks.length;
+  }
+}
 
 /* ---------- Giao tiếp với ứng dụng Apps Script ---------- */
 const post = m => { try { if (target && window.opener && !window.opener.closed) window.opener.postMessage(m, target); } catch(e){} };
@@ -109,130 +149,219 @@ window.addEventListener('message', e => {
   if (e.source !== window.opener || !ORIGIN_OK(e.origin)) return;
   const m = e.data || {};
   if (m.type === 'HELLO'){
-    target = e.origin; $('#link').textContent = 'Đã kết nối với ứng dụng biên bản họp'; $('#link').className = 'ok';
-    if (blob) $('#bSend').click();
+    target = e.origin; $('#link').textContent = 'Đã kết nối ứng dụng'; $('#link').className = 'badge ok';
+    if (P.length && !S.running) $('#bSend').click(); else if (!S.running) post({ type:'TICK', status:'idle', elapsed:0, level:0 });
   } else if (target === e.origin && m.type === 'CMD'){
-    if (m.cmd === 'pause' && running && !paused) togglePause();
-    else if (m.cmd === 'resume' && running && paused) togglePause();
+    if (m.cmd === 'pause' && S.running && !S.paused) togglePause();
+    else if (m.cmd === 'resume' && S.running && S.paused) togglePause();
     else if (m.cmd === 'stop') stop();
   } else if (target === e.origin && m.type === 'ACK'){
     $('#sent').dataset.ok = '1'; $('#sent').textContent = 'Đã gửi về ứng dụng. Cửa sổ sẽ tự đóng.'; idbClear(); setTimeout(() => window.close(), 900);
   }
 });
 if (window.opener){
-  let n = 0; const ping = () => { if (target || ++n > 14) return clearInterval(iv); try { window.opener.postMessage({ type:'READY' }, '*'); } catch(e){} };
-  const iv = setInterval(ping, 800); ping();
-} else {
-  $('#link').textContent = 'Chạy độc lập: ghi xong hãy tải file về máy rồi chọn file trong ứng dụng.';
-}
+  let n = 0; const iv = setInterval(() => { if (target || ++n > 14) return clearInterval(iv); try { window.opener.postMessage({ type:'READY' }, '*'); } catch(e){} }, 800);
+  try { window.opener.postMessage({ type:'READY' }, '*'); } catch(e){}
+} else { $('#link').textContent = 'Chạy độc lập'; $('#sub').textContent = 'Ghi xong hãy tải file về máy rồi chọn file trong ứng dụng.'; }
 
 /* ---------- Giao diện ---------- */
 const canvas = $('#wave'), g = canvas.getContext('2d');
 function draw(){
   const r = devicePixelRatio || 1; canvas.width = canvas.clientWidth*r; canvas.height = canvas.clientHeight*r;
-  const w = canvas.width, h = canvas.height, step = 5*r, n = Math.floor(w/step), b = bars.slice(-n);
+  const w = canvas.width, h = canvas.height, step = 5*r, n = Math.floor(w/step), b = S.bars.slice(-n);
   g.clearRect(0,0,w,h);
   for (let i=0;i<n;i++){ const v = b[b.length-n+i] ?? 0, bh = Math.max(3*r, v*h*0.92);
-    g.fillStyle = (running && !paused) ? (i>n-4 ? '#FF6B63' : '#7FB8D9') : '#3A5568'; g.fillRect(i*step, (h-bh)/2, 3*r, bh); }
+    g.fillStyle = (S.running && !S.paused) ? (i>n-4 ? '#FF6B63' : '#7FB8D9') : '#3A5568'; g.fillRect(i*step, (h-bh)/2, 3*r, bh); }
 }
 window.addEventListener('resize', draw);
 function ui(mode){
   $('#band').classList.toggle('live', mode==='recording'); $('#band').classList.toggle('paused', mode==='paused');
-  $('#st').textContent = { idle:'Đang chờ…', recording:'Đang ghi âm', paused:'Đã tạm dừng', done:'Đã ghi xong' }[mode];
-  $('#ctrls').hidden = !(mode==='recording' || mode==='paused');
+  $('#st').textContent = { idle:'Sẵn sàng ghi âm', recording:'Đang ghi âm', paused:'Đã tạm dừng', done:'Đã ghi xong' }[mode];
+  const on = mode==='recording' || mode==='paused';
+  $('#bStart').hidden = mode!=='idle'; $('#bPause').hidden = !on; $('#bStop').hidden = !on; $('#setup').hidden = on || mode==='done';
   $('#bPause').textContent = mode==='paused' ? 'Tiếp tục' : 'Tạm dừng';
   document.title = mode==='recording' ? '● Đang ghi âm' : 'Máy ghi âm cuộc họp';
 }
-function showErr(msg){ $('#errTxt').textContent = msg; $('#err').hidden = false; ui('idle'); post({ type:'ERROR', message: msg }); }
-
-/* ---------- Ghi âm ---------- */
-async function start(){
-  $('#err').hidden = true; $('#recover').hidden = true; $('#done').hidden = true;
+function showErr(msg){ $('#errTxt').textContent = msg; $('#err').hidden = false; ui('idle'); post({ type:'ERROR', message:msg }); }
+async function loadDevices(){
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio:{ channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
-  } catch(e){
-    showErr('Chưa được phép dùng micro. Bấm biểu tượng ổ khóa cạnh thanh địa chỉ → cho phép Micrô, rồi bấm Thử lại.'); return;
-  }
-  const mt = ['audio/webm;codecs=opus','audio/webm','audio/mp4'].find(t => MediaRecorder.isTypeSupported(t));
-  mr = new MediaRecorder(stream, mt ? { mimeType:mt, audioBitsPerSecond:32000 } : {});
-  sessionId = Date.now(); chunks = []; bars = []; acc = 0;
-  mr.ondataavailable = e => { if (e.data && e.data.size){ chunks.push(e.data); idbAdd({ s:sessionId, b:e.data }); } };
-  mr.onstop = onStop; mr.start(1000);
-  ctx = new (window.AudioContext || window.webkitAudioContext)();
-  an = ctx.createAnalyser(); an.fftSize = 1024; ctx.createMediaStreamSource(stream).connect(an);
-  running = true; paused = false; t0 = performance.now();
-  try { wake = await navigator.wakeLock.request('screen'); } catch(e){}
-  ui('recording'); tid = setInterval(tick, 60);
+    const list = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput' && d.deviceId !== 'default' && d.deviceId !== 'communications');
+    const sel = $('#selMic'), cur = sel.value; sel.innerHTML = '<option value="">Micro mặc định</option>';
+    list.forEach((d,i) => { const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || ('Micro ' + (i+1)); sel.append(o); });
+    sel.value = cur;
+  } catch(e){}
 }
-function tick(){
-  if (!running) return;
-  let level = 0;
-  if (!paused){
-    const buf = new Uint8Array(an.fftSize); an.getByteTimeDomainData(buf);
-    let s = 0; for (const x of buf){ const v = (x-128)/128; s += v*v; }
-    level = Math.min(1, Math.sqrt(s/buf.length)*3.2); bars.push(level); if (bars.length > 900) bars.splice(0, 300);
+
+/* ---------- Ghi âm liên tục: PCM từ AudioWorklet → mã hóa MP3 → tự cắt phần ---------- */
+function addMp3(out){ if (out.length) S.chunks.push(new Int8Array(out)); }
+function flushQ(){
+  if (!S.qLen) return;
+  const all = new Int16Array(S.qLen); let o = 0; for (const a of S.q){ all.set(a, o); o += a.length; } S.q = []; S.qLen = 0;
+  for (let i=0;i<all.length;i+=1152) addMp3(S.enc.encodeBuffer(all.subarray(i, i+1152)));
+}
+function newEncoder(){ S.enc = new lamejs.Mp3Encoder(1, S.rate, S.kbps); }
+/* Kết thúc phần hiện tại và mở phần mới bằng bộ mã hóa mới. Mẫu âm thanh kế tiếp chuyển ngay sang phần mới nên không mất tiếng. */
+function cutPart(){
+  addMp3(S.enc.flush()); persist();
+  const blob = new Blob(S.chunks, { type:'audio/mpeg' });
+  if (blob.size > 2000) S.parts.push({ i:S.idx, start:S.partStart / S.rate, duration:(S.total - S.partStart) / S.rate, blob,
+    name:`ghi-am-${S.stamp}-p${String(S.idx).padStart(2,'0')}.mp3`, mime:'audio/mpeg' });
+  S.idx++; S.partStart = S.total; S.chunks = []; S.savedIdx = 0; S.quiet = 0; newEncoder();
+}
+function onPcm(f){
+  if (!S.running || S.paused) return;
+  let s = 0; for (let i=0;i<f.length;i++) s += f[i]*f[i];
+  S.level = Math.min(1, Math.sqrt(s/f.length)*3.2);
+  S.quiet = S.level < 0.05 ? S.quiet + f.length : 0;
+  const ps = S.total - S.partStart, goal = S.segSec * S.rate;
+  /* Đủ thời lượng thì cắt ở chỗ im lặng (≥0,4 giây); nếu 45 giây vẫn không có chỗ nghỉ thì cắt luôn */
+  if (ps >= goal && (S.quiet >= 0.4*S.rate || ps >= goal + 45*S.rate)){ flushQ(); cutPart(); }
+  const x = new Int16Array(f.length);
+  for (let i=0;i<f.length;i++){ const v = Math.max(-1, Math.min(1, f[i])); x[i] = v < 0 ? v*32768 : v*32767; }
+  S.q.push(x); S.qLen += x.length; S.total += f.length;
+  if (S.qLen >= 4608) flushQ();
+}
+
+const getMic = any => { const id = !any && $('#selMic').value;
+  return navigator.mediaDevices.getUserMedia({ audio:{ deviceId:id ? { exact:id } : undefined, channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); };
+function watchMic(m){ m.getAudioTracks()[0].onended = () => { if (S.running && S.mic === m) reconnectMic(); }; }
+/* Micro rút ra hoặc Bluetooth rớt: thử nối lại tối đa ~40 giây, nếu không được thì lưu phần đã ghi */
+async function reconnectMic(){
+  S.note = 'Mất kết nối micro, đang thử nối lại…';
+  for (let k=0; k<20 && S.running; k++){
+    try {
+      const m = await getMic(true);
+      try { S.micSrc.disconnect(); } catch(e){}
+      S.mic = m; S.micSrc = S.ctx.createMediaStreamSource(m); S.micSrc.connect(S.mix); watchMic(m); S.note = ''; return;
+    } catch(e){ await sleep(2000); }
   }
-  draw(); const el = elapsed(); $('#timer').textContent = fmt(el);
-  post({ type:'TICK', status: paused ? 'paused' : 'recording', elapsed: el, level });
+  if (S.running){ $('#sub').textContent = 'Không nối lại được micro. Đã lưu phần ghi được.'; stop(); }
+}
+
+async function start(){
+  $('#err').hidden = true; $('#recover').hidden = true; $('#done').hidden = true; $('#sub').textContent = ''; $('#warn').hidden = true;
+  if (typeof lamejs === 'undefined'){ showErr('Không tải được bộ mã hóa MP3. Kiểm tra kết nối mạng rồi tải lại trang.'); return; }
+  let tab = null, mic = null;
+  if ($('#cbTab').checked){
+    try { tab = await navigator.mediaDevices.getDisplayMedia({ video:true, audio:true }); }
+    catch(e){ showErr('Chưa chia sẻ tab cuộc họp. Bấm Bắt đầu, chọn tab và bật “Chia sẻ âm thanh của tab”.'); return; }
+    tab.getVideoTracks().forEach(t => t.stop());
+    if (!tab.getAudioTracks().length){ tab.getTracks().forEach(t => t.stop()); showErr('Tab đã chọn không có âm thanh. Hãy chọn lại và bật “Chia sẻ âm thanh của tab”.'); return; }
+  }
+  try { mic = await getMic(false); }
+  catch(e){
+    if (tab) tab.getTracks().forEach(t => t.stop());
+    showErr('Chưa được phép dùng micro. Bấm biểu tượng ổ khóa cạnh thanh địa chỉ, cho phép Micrô rồi bấm Bắt đầu lại.'); return;
+  }
+  loadDevices();
+  try {
+    await idbClear();                                                   // bản ghi cũ chưa khôi phục đã được người dùng bỏ qua ở màn hình khôi phục
+    try { S.ctx = new AudioContext({ sampleRate:16000 }); } catch(e){ S.ctx = new AudioContext(); }
+    await S.ctx.resume();
+    S.ctx.onstatechange = () => { if (S.running && S.ctx.state !== 'running') S.ctx.resume().catch(() => {}); };
+    S.rate = S.ctx.sampleRate; S.kbps = S.rate > 24000 ? 48 : 24;
+    S.mix = S.ctx.createGain(); S.mix.gain.value = tab ? 0.7 : 1;
+    S.micSrc = S.ctx.createMediaStreamSource(mic); S.micSrc.connect(S.mix);
+    if (tab) S.ctx.createMediaStreamSource(new MediaStream(tab.getAudioTracks())).connect(S.mix);
+    const code = "class P extends AudioWorkletProcessor{process(i){const c=i[0]&&i[0][0];if(c)this.port.postMessage(c.slice(0));return true}}registerProcessor('pcm',P)";
+    await S.ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([code], { type:'text/javascript' })));
+    S.node = new AudioWorkletNode(S.ctx, 'pcm'); S.node.port.onmessage = e => onPcm(e.data);
+    const mute = S.ctx.createGain(); mute.gain.value = 0;
+    S.mix.connect(S.node); S.node.connect(mute); mute.connect(S.ctx.destination);
+  } catch(e){
+    [mic, tab].forEach(s => s && s.getTracks().forEach(t => t.stop())); try { S.ctx.close(); } catch(x){}
+    showErr('Không khởi tạo được bộ ghi âm: ' + (e.message || e)); return;
+  }
+  Object.assign(S, { mic, tab, parts:[], idx:1, q:[], qLen:0, total:0, partStart:0, chunks:[], savedIdx:0, quiet:0, bars:[], pausedMs:0, note:'',
+    segSec:+$('#selSeg').value || 900, sid:Date.now(), stamp:new Date().toISOString().slice(0,16).replace(/[-:T]/g,'') });
+  P = []; newEncoder(); watchMic(mic);
+  if (tab) tab.getAudioTracks()[0].onended = () => { S.note = 'Đã dừng chia sẻ tab. Vẫn tiếp tục ghi micro.'; };
+  S.running = true; S.paused = false; S.t0 = performance.now();
+  try { S.wake = await navigator.wakeLock.request('screen'); } catch(e){}
+  ui('recording'); S.tid = setInterval(tick, 100); S.idbT = setInterval(persist, 2000);
+}
+document.addEventListener('visibilitychange', async () => {
+  if (!S.running || document.visibilityState !== 'visible') return;
+  try { S.wake = await navigator.wakeLock.request('screen'); } catch(e){}
+  if (S.ctx && S.ctx.state !== 'running') S.ctx.resume().catch(() => {});
+});
+
+function tick(){
+  if (!S.running) return;
+  if (!S.paused){ S.bars.push(S.level); if (S.bars.length > 900) S.bars.splice(0, 300); }
+  draw();
+  const el = S.total / S.rate; $('#timer').textContent = hms(el);
+  const now = performance.now(), wall = (now - S.t0 - S.pausedMs - (S.paused ? now - S.pauseAt : 0)) / 1000, lost = wall - el;
+  let warn = S.note; if (lost > 5) warn = (warn ? warn + ' ' : '') + `Mất khoảng ${Math.round(lost)} giây âm thanh (máy ngủ hoặc micro gián đoạn).`;
+  $('#warn').hidden = !warn; $('#warn').textContent = warn;
+  const saved = S.parts.length ? S.parts[S.parts.length-1].start + S.parts[S.parts.length-1].duration : 0;
+  $('#sub').textContent = `Phần ${S.idx} · đã lưu an toàn ${S.parts.length} phần (${hms(saved)})`;
+  post({ type:'TICK', status: S.paused ? 'paused' : 'recording', elapsed: el, level: S.paused ? 0 : S.level, part: S.idx, warn });
 }
 function togglePause(){
-  if (!running) return;
-  if (!paused){ mr.pause(); acc += (performance.now()-t0)/1000; paused = true; ui('paused'); }
-  else { mr.resume(); t0 = performance.now(); paused = false; ui('recording'); }
+  if (!S.running) return;
+  if (!S.paused){ S.paused = true; S.pauseAt = performance.now(); ui('paused'); }
+  else { S.pausedMs += performance.now() - S.pauseAt; S.paused = false; ui('recording'); }
 }
 function stop(){
-  if (!running) return;
-  acc = elapsed(); running = false; clearInterval(tid);
-  mr.stop(); stream.getTracks().forEach(t => t.stop());
-  try { ctx.close(); } catch(e){} try { wake && wake.release(); } catch(e){}
-}
-function onStop(){
-  const type = mr.mimeType || 'audio/webm';
-  blob = new Blob(chunks, { type }); dur = acc;
-  name = 'ghi-am-' + new Date().toISOString().slice(0,16).replace(/[-:T]/g,'') + (type.includes('mp4') ? '.m4a' : '.webm');
-  showDone();
+  if (!S.running) return;
+  S.running = false; clearInterval(S.tid); clearInterval(S.idbT);
+  try { S.node.disconnect(); } catch(e){}
+  [S.mic, S.tab].forEach(s => s && s.getTracks().forEach(t => t.stop()));
+  try { S.ctx.close(); } catch(e){} try { S.wake && S.wake.release(); } catch(e){}
+  flushQ(); cutPart();
+  if (!S.parts.length){ showErr('Không ghi được âm thanh nào. Hãy kiểm tra micro rồi ghi lại.'); return; }
+  base = 'ghi-am-' + S.stamp; P = S.parts; showDone();
 }
 function showDone(){
-  ui('done'); $('#done').hidden = false; $('#prev').src = URL.createObjectURL(blob); $('#timer').textContent = fmt(dur);
-  $('#sent').textContent = ''; delete $('#sent').dataset.ok;
-  if (target) $('#bSend').click(); else $('#sent').textContent = 'Chưa kết nối được ứng dụng. Hãy bấm "Tải file về máy" rồi chọn file trong ứng dụng.';
+  dur = P.length ? P[P.length-1].start + P[P.length-1].duration : 0;
+  P.forEach(p => { p.url = URL.createObjectURL(p.blob); });
+  ui('done'); $('#done').hidden = false; $('#timer').textContent = hms(dur); $('#warn').hidden = true;
+  $('#doneInfo').textContent = `${P.length} phần · ${hms(dur)} · ${(P.reduce((s,p) => s + p.blob.size, 0)/1048576).toFixed(1)} MB`;
+  const pv = $('#prev'); pv.dataset.i = '0'; pv.src = P[0].url;
+  pv.onended = () => { const i = +pv.dataset.i + 1; if (i < P.length){ pv.dataset.i = i; pv.src = P[i].url; pv.play().catch(() => {}); } };
+  $('#sent').textContent = ''; delete $('#sent').dataset.ok; draw();
+  if (target) $('#bSend').click(); else if (window.opener) $('#sent').textContent = 'Đang chờ kết nối với ứng dụng…'; else $('#sent').textContent = 'Hãy bấm “Tải file gộp” rồi chọn file trong ứng dụng.';
 }
 
-$('#bPause').onclick = togglePause; $('#bStop').onclick = stop; $('#bRetry').onclick = start;
+$('#bStart').onclick = start; $('#bPause').onclick = togglePause;
+$('#bStop').onclick = () => { if (confirm('Kết thúc ghi âm? Bản ghi sẽ được lưu và gửi về ứng dụng.')) stop(); };
 $('#bSend').onclick = () => {
-  if (!blob) return;
+  if (!P.length) return;
   if (target && window.opener && !window.opener.closed){
-    window.opener.postMessage({ type:'DONE', blob, duration:dur, name, mime:(blob.type||'audio/webm').split(';')[0] }, target);
+    window.opener.postMessage({ type:'DONE', duration:dur, name:base, mime:'audio/mpeg',
+      parts:P.map(p => ({ blob:p.blob, start:p.start, duration:p.duration, name:p.name, mime:p.mime })), blob:P.length === 1 ? P[0].blob : undefined }, target);
     $('#sent').textContent = 'Đang gửi về ứng dụng…';
-    setTimeout(() => { if (!$('#sent').dataset.ok) $('#sent').textContent = 'Chưa nhận được xác nhận. Hãy bấm "Tải file về máy" để giữ bản ghi.'; }, 8000);
+    setTimeout(() => { if (!$('#sent').dataset.ok) $('#sent').textContent = 'Chưa nhận được xác nhận. Hãy bấm “Tải file gộp” để giữ bản ghi.'; }, 10000);
   } else $('#sent').textContent = 'Không kết nối được ứng dụng. Hãy tải file về máy rồi chọn file trong ứng dụng.';
 };
-$('#bDl').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click(); a.remove(); };
-$('#bAgain').onclick = async () => { if (confirm('Bỏ bản ghi này và ghi lại?')){ await idbClear(); blob = null; start(); } };
-window.addEventListener('beforeunload', e => { if (running){ e.preventDefault(); e.returnValue = ''; } });
+$('#bDl').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(P.map(p => p.blob), { type:'audio/mpeg' })); a.download = base + '.mp3'; document.body.append(a); a.click(); a.remove(); };
+$('#bAgain').onclick = async () => {
+  if (!confirm('Bỏ bản ghi này và ghi lại?')) return;
+  await idbClear(); P.forEach(p => p.url && URL.revokeObjectURL(p.url)); P = []; S.parts = []; S.bars = [];
+  $('#done').hidden = true; $('#timer').textContent = '00:00:00'; ui('idle'); draw();
+};
+window.addEventListener('beforeunload', e => { if (S.running){ e.preventDefault(); e.returnValue = ''; } });
 
-function getDuration(b){
-  return new Promise(res => { const a = new Audio(); a.preload = 'metadata'; a.src = URL.createObjectURL(b);
-    a.onloadedmetadata = () => { if (a.duration === Infinity){ a.currentTime = 1e101; a.ontimeupdate = () => { a.ontimeupdate = null; res(a.duration); }; } else res(a.duration); };
-    a.onerror = () => res(0); });
-}
-
-/* ---------- Khởi động: khôi phục bản ghi dở (nếu có) hoặc ghi ngay ---------- */
+/* ---------- Khởi động: nếu còn bản ghi dở thì cho khôi phục ---------- */
 (async () => {
-  draw(); ui('idle'); let rows = [];
-  try { rows = await idbAll(); } catch(e){}
-  if (rows.length){
-    const size = rows.reduce((s, r) => s + r.b.size, 0);
-    $('#recTxt').textContent = `Dung lượng ${(size/1048576).toFixed(1)} MB, có thể do cửa sổ bị đóng giữa chừng.`;
-    $('#recover').hidden = false;
-    $('#bRecover').onclick = async () => {
-      blob = new Blob(rows.map(r => r.b), { type: rows[0].b.type || 'audio/webm' });
-      dur = await getDuration(blob); name = 'khoi-phuc-' + new Date().toISOString().slice(0,16).replace(/[-:T]/g,'') + '.webm';
-      $('#recover').hidden = true; showDone();
-    };
-    $('#bDiscard').onclick = async () => { await idbClear(); start(); };
-    post({ type:'TICK', status:'idle', elapsed:0, level:0 });
-  } else start();
+  draw(); ui('idle'); loadDevices();
+  let rows = []; try { rows = (await idbAll()).filter(r => r.i != null); } catch(e){}
+  if (!rows.length) return;
+  const sid = Math.max(...rows.map(r => r.s)); rows = rows.filter(r => r.s === sid);
+  const by = {}; rows.forEach(r => (by[r.i] = by[r.i] || []).push(r));
+  const groups = Object.keys(by).map(Number).sort((a,b) => a-b).map(k => by[k]);
+  const size = rows.reduce((s, r) => s + r.b.size, 0);
+  $('#recTxt').textContent = `${groups.length} phần, ${(size/1048576).toFixed(1)} MB. Có thể do cửa sổ bị đóng hoặc máy bị tắt giữa chừng (có thể thiếu 1–2 giây cuối).`;
+  $('#recover').hidden = false; $('#bStart').hidden = true; $('#setup').hidden = true;
+  $('#bRecover').onclick = () => {
+    const stamp = new Date().toISOString().slice(0,16).replace(/[-:T]/g,'');
+    P = groups.map((gr, n) => { const blob = new Blob(gr.map(r => r.b), { type:'audio/mpeg' });
+      return { i:gr[0].i, start:gr[0].start, duration:blob.size * 8 / (gr[0].kbps * 1000), blob, name:`khoi-phuc-${stamp}-p${String(n+1).padStart(2,'0')}.mp3`, mime:'audio/mpeg' }; });
+    S.parts = P; base = 'khoi-phuc-' + stamp; $('#recover').hidden = true; showDone();
+  };
+  $('#bDiscard').onclick = async () => { await idbClear(); $('#recover').hidden = true; ui('idle'); };
+  post({ type:'TICK', status:'idle', elapsed:0, level:0 });
 })();
 </script>
 </body>
